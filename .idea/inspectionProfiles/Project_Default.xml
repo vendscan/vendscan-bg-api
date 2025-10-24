@@ -1,0 +1,50 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="jsonschema" />
+          <option value="numpy" />
+          <option value="opencv-python-headless" />
+          <option value="pillow" />
+          <option value="pooch" />
+          <option value="pymatting" />
+          <option value="scikit-image" />
+          <option value="scipy" />
+          <option value="tqdm" />
+          <option value="bandit" />
+          <option value="black" />
+          <option value="flake8" />
+          <option value="imagehash" />
+          <option value="isort" />
+          <option value="mypy" />
+          <option value="pytest" />
+          <option value="twine" />
+          <option value="wheel" />
+          <option value="onnxruntime" />
+          <option value="onnxruntime-gpu" />
+          <option value="onnxruntime-rocm" />
+          <option value="aiohttp" />
+          <option value="asyncer" />
+          <option value="click" />
+          <option value="fastapi" />
+          <option value="filetype" />
+          <option value="gradio" />
+          <option value="python-multipart" />
+          <option value="uvicorn" />
+          <option value="watchdog" />
+          <option value="setuptools" />
+          <option value="torch" />
+          <option value="transformers" />
+          <option value="langchain" />
+          <option value="langchain-huggingface" />
+          <option value="huggingface-hub" />
+          <option value="accelerate" />
+          <option value="kornia" />
+          <option value="timm" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
