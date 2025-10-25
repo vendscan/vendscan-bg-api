@@ -1,66 +1,60 @@
+# app.py — FastAPI + RMBG-1.4 transparent background remover
 import os
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import StreamingResponse
-from model_loader import processor, model, device
+from fastapi.responses import Response
 from PIL import Image
 import torch
 import torch.nn.functional as F
 import numpy as np
-import io
-
-API_KEY = os.getenv("API_KEY")
+from model_loader import model, device
 
 app = FastAPI()
-
-def remove_bg_on_image(image_bytes: bytes):
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    W, H = image.size
-
-    inputs = processor(image, return_tensors="pt")
-    pixel_values = next(v for v in inputs.values() if isinstance(v, torch.Tensor)).to(device)
-
-    with torch.no_grad():
-        out = model(pixel_values)
-
-    logits = out[0] if isinstance(out, (list, tuple)) else out.logits
-    if logits.dim() == 3:
-        logits = logits.unsqueeze(1)
-
-    prob = torch.sigmoid(logits)
-    prob_up = F.interpolate(prob, size=(H, W), mode="bilinear", align_corners=False)
-    alpha = prob_up[0, 0].clamp(0, 1).cpu().numpy()
-
-    mask_8u = (alpha * 255).astype(np.uint8)
-    rgba = image.convert("RGBA")
-    rgba.putalpha(Image.fromarray(mask_8u, mode="L"))
-
-    output = io.BytesIO()
-    rgba.save(output, format="PNG")
-    output.seek(0)
-    return output
 
 @app.get("/health")
 def health():
     return {"status": "ok", "device": device}
 
 @app.post("/remove-bg")
-async def remove_bg(file: UploadFile = File(...), x_api_key: str = None):
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=403, detail="Invalid API Key")
+async def remove_bg(file: UploadFile = File(...)):
+    # Validate file type
+    if not file.filename.lower().endswith((".png", ".jpg", ".jpeg")):
+        raise HTTPException(status_code=400, detail="Invalid file type")
 
-    image_bytes = await file.read()
-    output = remove_bg_on_image(image_bytes)
-    return StreamingResponse(output, media_type="image/png")
+    # Load image into Pillow
+    try:
+        image = Image.open(file.file).convert("RGB")
+    except:
+        raise HTTPException(status_code=400, detail="Could not load image")
 
-@app.post("/remove-bg-batch")
-async def remove_bg_batch(files: list[UploadFile] = File(...), x_api_key: str = None):
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=403, detail="Invalid API Key")
+    W, H = image.size
 
-    results = []
-    for f in files:
-        image_bytes = await f.read()
-        output = remove_bg_on_image(image_bytes)
-        results.append(output.getvalue())
+    # --- preprocess (same as your working local code) ---
+    img_np = np.array(image).astype(np.float32) / 255.0
+    img_t = torch.from_numpy(img_np).permute(2, 0, 1).unsqueeze(0).to(device)
 
-    return {"results": [res.hex() for res in results]}  # client will decode hex to PNG bytes
+    # forward pass
+    with torch.no_grad():
+        out = model(img_t)
+
+    # extract logits
+    logits = out[0] if isinstance(out, (list, tuple)) else out.logits
+    if logits.dim() == 3:
+        logits = logits.unsqueeze(1)
+
+    # sigmoid + resize
+    prob = torch.sigmoid(logits)
+    prob_up = F.interpolate(prob, size=(H, W), mode="bilinear", align_corners=False)
+    alpha = prob_up[0, 0].clamp(0, 1).cpu().numpy()
+
+    # create transparent PNG
+    alpha_8 = (alpha * 255).astype(np.uint8)
+    rgba = image.convert("RGBA")
+    rgba.putalpha(Image.fromarray(alpha_8, mode="L"))
+
+    # save to bytes for response
+    from io import BytesIO
+    buffer = BytesIO()
+    rgba.save(buffer, format="PNG")
+    buffer.seek(0)
+
+    return Response(buffer.getvalue(), media_type="image/png")
